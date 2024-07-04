@@ -1,0 +1,219 @@
+#include <stdio.h>
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_matrix.h>
+#include <gsl/gsl_odeiv2.h>
+#include <cmath>
+#include <iostream>
+#include <fstream>
+
+using namespace std;
+/* usar tiempo conforme en vez de el tiempo t y representar varios k */
+
+#define Lam	pow(10,-14)
+#define g2	3.0
+/* g2 es g^2 entre lamda */
+#define fi0	sqrt(3.0)
+#define	mp	1.0
+
+struct param_type {
+    double H;
+    double k;
+};
+
+
+int
+func (double t, const double y[], double f[],
+      void *params)
+{
+  (void)(t); /* avoid unused parameter warning */
+  	struct param_type *my_params_pointer = (param_type *)params;
+  	double H  = my_params_pointer->H;
+    double k  = my_params_pointer->k;
+  	H=sqrt((fi0*fi0/(3.0*mp*mp))*((y[1]*y[1]/2.0)+(pow(y[0],4)/4.0)));
+  	
+	/* Ecuaciones del campo */  
+  f[0] = y[1];
+  f[1] = -3.0*H*y[1]-pow(y[0],3.0);
+  
+  /* ecuaciones del factor a, siendo a=y[2] y f[2] su derivada */
+  f[2] = H*y[2]; 	
+  
+  /* estos serán para la parte real de delta(phi) */
+  f[3] = y[4];
+  f[4] = -3.0*H*y[4]-(k*k/(y[2]*y[2])+g2*y[0]*y[0])*y[3];
+  
+  /*estos serán para los imaginarios de delta(phi) */
+  f[5] = y[6];
+  f[6] = -3.0*H*y[6]-(k*k/(y[2]*y[2])+g2*y[0]*y[0])*y[5];
+  return GSL_SUCCESS;
+}
+
+int
+jac (double t, const double y[], double *dfdy,
+     double dfdt[], void *params)
+{
+  (void)(t); /* avoid unused parameter warning */
+    struct param_type *my_params_pointer = (param_type *)params;
+  	double H  = my_params_pointer->H;
+    double k  = my_params_pointer->k;
+	H=sqrt((fi0*fi0/(3.0*mp*mp))*((y[1]*y[1]/2.0)+(pow(y[0],4)/4.0)));	
+	gsl_matrix_view dfdy_mat
+    = gsl_matrix_view_array (dfdy, 7, 7);
+  gsl_matrix * m = &dfdy_mat.matrix;
+  gsl_matrix_set (m, 0, 0, 0.0);
+  gsl_matrix_set (m, 0, 1, 1.0);
+  gsl_matrix_set (m, 0, 2, 0.0);
+  gsl_matrix_set (m, 0, 3, 0.0);
+  gsl_matrix_set (m, 0, 4, 0.0);
+  gsl_matrix_set (m, 0, 5, 0.0);
+  gsl_matrix_set (m, 0, 6, 0.0);
+  gsl_matrix_set (m, 1, 0, -3.0*y[0]*y[0]);
+  gsl_matrix_set (m, 1, 1, -3.0*H);
+  gsl_matrix_set (m, 1, 2, 0.0);
+  gsl_matrix_set (m, 1, 3, 0.0);
+  gsl_matrix_set (m, 1, 4, 0.0);
+  gsl_matrix_set (m, 1, 5, 0.0);
+  gsl_matrix_set (m, 1, 6, 0.0);    
+  gsl_matrix_set (m, 2, 0, 0.0);
+  gsl_matrix_set (m, 2, 1, 0.0);
+  gsl_matrix_set (m, 2, 2, H);
+  gsl_matrix_set (m, 2, 3, 0.0);
+  gsl_matrix_set (m, 2, 4, 0.0);
+  gsl_matrix_set (m, 2, 5, 0.0);
+  gsl_matrix_set (m, 2, 6, 0.0);
+  gsl_matrix_set (m, 3, 0, 0.0);
+  gsl_matrix_set (m, 3, 1, 0.0);
+  gsl_matrix_set (m, 3, 2, 0.0);
+  gsl_matrix_set (m, 3, 3, 0.0);
+  gsl_matrix_set (m, 3, 4, 1.0);
+  gsl_matrix_set (m, 3, 5, 0.0);
+  gsl_matrix_set (m, 3, 6, 0.0);
+  gsl_matrix_set (m, 4, 0, -2.0*g2*y[0]*y[3]);
+  gsl_matrix_set (m, 4, 1, 0.0);
+  gsl_matrix_set (m, 4, 2, 2.0*k*k*H*y[3]/(y[2]*y[2]));
+  gsl_matrix_set (m, 4, 3, -k*k/(y[2]*y[2])-g2*y[0]*y[0]);
+  gsl_matrix_set (m, 4, 4, -3.0*H);
+  gsl_matrix_set (m, 4, 5, 0.0);
+  gsl_matrix_set (m, 4, 6, 0.0);
+  gsl_matrix_set (m, 5, 0, 0.0);
+  gsl_matrix_set (m, 5, 1, 0.0);
+  gsl_matrix_set (m, 5, 2, 0.0);
+  gsl_matrix_set (m, 5, 3, 0.0);
+  gsl_matrix_set (m, 5, 4, 0.0);
+  gsl_matrix_set (m, 5, 5, 0.0);
+  gsl_matrix_set (m, 5, 6, 1.0);
+  gsl_matrix_set (m, 6, 0, -2.0*g2*y[0]*y[5]);
+  gsl_matrix_set (m, 6, 1, 0.0);
+  gsl_matrix_set (m, 6, 2, 2.0*k*k*H*y[5]/(y[2]*y[2]));
+  gsl_matrix_set (m, 6, 3, 0.0);
+  gsl_matrix_set (m, 6, 4, 0.0);
+  gsl_matrix_set (m, 6, 5, -k*k/(y[2]*y[2])-g2*y[0]*y[0]);
+  gsl_matrix_set (m, 6, 6, -3.0*H);
+  dfdt[0] = 0.0;
+  dfdt[1] = 0.0;
+  dfdt[2] = 0.0;
+  dfdt[3] = 0.0;
+  dfdt[4] = 0.0;
+  dfdt[5] = 0.0;
+  dfdt[6] = 0.0;
+  return GSL_SUCCESS;
+}
+
+int
+main (void)
+{
+	/* r será la variable temporal pero quiero que sea un entero  */	
+	
+  double H, k, omega, omega2, mod, mod2, nk, r;
+  
+   int i, j;
+  
+  /* Valor inicial del k para ir aumentandolo y representarlo */
+  
+  k=1.0;
+  
+  /* Estos serán los ficheros donde escribiré los valores de nk */
+  /* el primero es para t=0, el segundo para t=500 y el último para t=1000 */
+  
+  ofstream myfile1("1.txt");
+  ofstream myfile2("2.txt");
+  ofstream myfile3("3.txt");
+  ofstream myfile4("4.txt");
+  ofstream myfile5("5.txt");
+  ofstream myfile6("6.txt");
+  
+    /* este ciclo for es para ir aumentando el valor de k 0.01 */
+    for (j=0; j<=200; j++)
+  {
+  
+   	double y[7];
+	H=fi0/(2*sqrt(3.0));
+	y[0]=1.0;
+	/* de donde se sacaba esta condicion? */
+	y[1]=-H*y[0];
+	y[2]=1.0;
+	omega2=k*k/(y[2]*y[2])+g2*y[0]*y[0];
+	omega=sqrt(omega2);	
+	y[3]=sqrt(Lam/(2.0*omega));
+	y[4]=0.0;
+	y[5]=0.0;
+	y[6]=-omega*y[3];
+	mod=sqrt(y[3]*y[3]+y[5]*y[5]);
+	mod2=sqrt(y[4]*y[4]+y[6]*y[6]+H*H*mod*mod);
+	nk=pow(y[2],3)*omega*(mod*mod+mod2*mod2/omega2)/2.0-Lam/2.0;
+		
+  struct param_type my_params = {H, k};
+  gsl_odeiv2_system sys = {func, jac, 7, &my_params};
+
+  gsl_odeiv2_driver * d =
+    gsl_odeiv2_driver_alloc_y_new (&sys, gsl_odeiv2_step_rk8pd,
+                                  1e-6, 1e-6, 0.0);
+
+ 
+	double t = 0.0, t1 = 20000.0;
+
+
+	
+    for (i = 1; i <= 20000; i++)
+    {
+      double ti = i * t1 / 20000.0;
+      int status = gsl_odeiv2_driver_apply (d, &t, ti, y);
+
+      if (status != GSL_SUCCESS)
+        {
+          printf ("error, return value=%d\n", status);
+          break;
+        }
+        
+        H=sqrt((fi0*fi0/(3.0*mp*mp))*((y[1]*y[1]/2.0)+(pow(y[0],4)/4.0)));
+	omega2=k*k/(y[2]*y[2])+g2*y[0]*y[0];
+	omega=sqrt(omega2);
+	mod=sqrt(y[3]*y[3]+y[5]*y[5]);
+	mod2=sqrt(y[4]*y[4]+y[6]*y[6]+H*H*mod*mod);
+	nk=pow(y[2],3)*omega*(mod*mod+mod2*mod2/omega2)/2.0-Lam/2.0;
+	r=(sqrt(t+1)-1)*fi0/(2.0*sqrt(3));
+	
+  	if (t == 181){ 
+	    myfile1 << k <<" "<< nk << endl;
+	}   else if (t == 675) { 
+	    myfile2 << k <<" "<< nk << endl;
+	    } else if (t == 2600) {
+	          myfile3 << k <<" "<< nk << endl;
+	    	  }  else if (t == 10200) {
+	          myfile4 << k <<" "<< nk << endl;
+	    	  } 
+	    		    
+
+    }
+    k=1.0+(j*0.01);
+    gsl_odeiv2_driver_free (d);
+  }
+
+  myfile1.close();
+  myfile2.close();
+  myfile3.close();
+  myfile4.close();
+  myfile5.close();
+  myfile6.close();
+  return 0;
+}
